@@ -601,7 +601,11 @@ function GameTable({ room, players, user, onLeave, syncError }: { room: Room, pl
                 {/* Cards */}
                 <div className="absolute top-[40px] left-1/2 -translate-x-1/2 w-full flex justify-center gap-[2px] z-[-1]">
                     {p.cards && p.cards.length > 0 ? p.cards.map((c, idx) => (
-                        <Card key={idx} card={c} hidden={!isMe && room.status === 'playing' && p.status !== 'folded'} />
+                        <Card 
+                            key={idx} 
+                            card={c} 
+                            hidden={(!isMe && room.status === 'playing' && p.status !== 'folded') || (isMe && room.gameMode === 'teen_patti' && p.isBlind)} 
+                        />
                     )) : null}
                 </div>
                 
@@ -732,19 +736,21 @@ function GameTable({ room, players, user, onLeave, syncError }: { room: Room, pl
             </div>
 
             {/* Controls Bar */}
-            <div className="h-[100px] sm:h-[120px] bg-[rgba(10,10,10,0.95)] border-t border-[#333] flex items-center justify-between px-4 sm:px-10 z-20 pb-safe">
-                <div className="flex items-center gap-5 hidden sm:flex">
+            <div className="h-[100px] sm:h-[120px] bg-[rgba(10,10,10,0.95)] border-t border-[#333] flex flex-col sm:flex-row items-center justify-between px-2 sm:px-10 z-20 pb-safe gap-2 sm:gap-0 pt-2 sm:pt-0">
+                <div className="flex items-center gap-5">
                     {/* User Info */}
-                    <div>
+                    <div className="hidden sm:block">
                         <div className="text-[10px] opacity-60 uppercase">Wallet</div>
                         <div className="text-[20px] font-extrabold text-[#eab308]">₹ {me?.chips.toLocaleString() || '0'}</div>
                     </div>
                     {me?.isBlind && room.gameMode === 'teen_patti' && (
                         <button 
-                            onClick={() => updateDoc(doc(db, 'rooms', room.id!, 'players', me.id!), { isBlind: false })}
-                            className="bg-[#1a1a1a] border border-[#333] hover:bg-[#333] px-3 py-1 rounded-full text-white text-[12px] font-bold transition-colors"
+                            onClick={async () => {
+                                await updateDoc(doc(db, 'rooms', room.id!, 'players', me.id!), { isBlind: false, updatedAt: Date.now() });
+                            }}
+                            className="bg-[#eab308] text-black hover:bg-yellow-400 px-4 py-1.5 sm:px-3 sm:py-1 rounded-full text-[12px] font-bold transition-colors shadow-[0_0_10px_rgba(234,179,8,0.3)] animate-pulse"
                         >
-                            SEE CARDS
+                            👁️ SEE CARDS
                         </button>
                     )}
                 </div>
@@ -761,24 +767,29 @@ function GameTable({ room, players, user, onLeave, syncError }: { room: Room, pl
                     <button 
                         disabled={!isMyTurn}
                         onClick={() => handleAction('call')}
-                        className="flex-1 sm:flex-none px-3 sm:px-7 py-3 rounded-lg font-bold uppercase transition-transform bg-[#15803d] text-white disabled:opacity-40"
+                        className="flex-1 sm:flex-none px-3 sm:px-7 py-3 rounded-lg font-bold uppercase transition-transform bg-[#15803d] text-white disabled:opacity-40 flex flex-col items-center justify-center leading-none gap-1"
                     >
-                        {room.gameMode === 'teen_patti' ? 'Chaal' : 'Call'}
+                        <span>{room.gameMode === 'teen_patti' ? (me?.isBlind ? 'Blind' : 'Chaal') : 'Call'}</span>
+                        <span className="text-[10px] sm:text-[12px] opacity-80">(₹ {room.gameMode === 'teen_patti' && me?.isBlind ? room.currentBet / 2 : room.currentBet})</span>
                     </button>
                     <button 
                         disabled={!isMyTurn}
                         onClick={() => handleAction('raise')}
-                        className="flex-1 sm:flex-none px-3 sm:px-7 py-3 rounded-lg font-bold uppercase transition-transform bg-[#eab308] text-black disabled:opacity-40"
+                        className="flex-1 sm:flex-none px-3 sm:px-7 py-3 rounded-lg font-bold uppercase transition-transform bg-[#eab308] text-black disabled:opacity-40 flex flex-col items-center justify-center leading-none gap-1"
                     >
-                        Raise
+                        <span>Raise</span>
+                        <span className="text-[10px] sm:text-[12px] opacity-80">(2x Bet)</span>
                     </button>
                     {room.gameMode === 'teen_patti' && players.filter(p => p.status === 'active').length === 2 && (
                         <button 
                             disabled={!isMyTurn}
                             onClick={() => handleAction('show')}
-                            className="flex-1 sm:flex-none px-3 sm:px-7 py-3 rounded-lg font-bold uppercase transition-transform bg-[#333] text-white disabled:opacity-40"
+                            className="flex-1 sm:flex-none px-3 sm:px-7 py-3 rounded-lg font-bold uppercase transition-transform bg-[#333] border border-[#555] text-white disabled:opacity-40 flex flex-col items-center justify-center leading-none gap-1"
                         >
-                            SHOW
+                            <span>SHOW</span>
+                            <span className="text-[10px] sm:text-[12px] text-yellow-500">
+                                (Cost ₹{room.gameMode === 'teen_patti' && me?.isBlind ? room.currentBet : room.currentBet * 2})
+                            </span>
                         </button>
                     )}
                 </div>
