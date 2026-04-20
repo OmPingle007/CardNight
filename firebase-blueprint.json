@@ -1,0 +1,52 @@
+{
+  "entities": {
+    "Room": {
+      "title": "Room",
+      "description": "A game room",
+      "type": "object",
+      "properties": {
+        "hostId": { "type": "string" },
+        "status": { "enum": ["waiting", "playing", "finished"] },
+        "gameMode": { "enum": ["teen_patti", "poker"] },
+        "pot": { "type": "number" },
+        "currentBet": { "type": "number" },
+        "currentRound": { "type": "string" },
+        "communityCards": { "type": "array", "items": { "type": "string" } },
+        "lastAction": { "type": "string" },
+        "turnOrder": { "type": "array", "items": { "type": "string" } },
+        "turnIndex": { "type": "number" },
+        "turnDeadline": { "type": "number" },
+        "deck": { "type": "array", "items": { "type": "string" } },
+        "winnerInfo": { "type": "string" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["hostId", "status", "gameMode", "updatedAt"]
+    },
+    "Player": {
+      "title": "Player",
+      "description": "A player in a room",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "chips": { "type": "number" },
+        "status": { "enum": ["waiting", "active", "folded", "all_in", "broke"] },
+        "currentBet": { "type": "number" },
+        "cards": { "type": "array", "items": { "type": "string" } },
+        "isBlind": { "type": "boolean" },
+        "seatIndex": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["name", "chips", "status", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/rooms/{roomId}": {
+      "schema": { "$ref": "#/entities/Room" },
+      "description": "Game room state"
+    },
+    "/rooms/{roomId}/players/{playerId}": {
+      "schema": { "$ref": "#/entities/Player" },
+      "description": "Player state within a room"
+    }
+  }
+}

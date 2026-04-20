@@ -1,0 +1,80 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Global Safety Net
+    match /{document=**} { 
+      allow read, write: if false; 
+    }
+
+    function isSignedIn() { return request.auth != null; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    function isValidRoom(data) {
+      return data.keys().hasAll(['hostId', 'status', 'gameMode', 'updatedAt']) 
+        && data.hostId == request.auth.uid
+        && data.status in ['waiting', 'playing', 'finished']
+        && data.gameMode in ['teen_patti', 'poker']
+        && ( !('pot' in data) || data.pot is number )
+        && ( !('currentBet' in data) || data.currentBet is number )
+        && ( !('turnIndex' in data) || data.turnIndex is number )
+        && ( !('turnOrder' in data) || (data.turnOrder is list && data.turnOrder.size() <= 10) )
+        && ( !('communityCards' in data) || (data.communityCards is list && data.communityCards.size() <= 5) )
+        && ( !('deck' in data) || (data.deck is list && data.deck.size() <= 52) )
+        && ( !('lastAction' in data) || (data.lastAction is string && data.lastAction.size() <= 200) );
+    }
+
+    function isValidRoomUpdate(data) {
+      return data.hostId == existing().hostId
+        && ( !('status' in data) || data.status in ['waiting', 'playing', 'finished'] )
+        && ( !('gameMode' in data) || data.gameMode in ['teen_patti', 'poker'] )
+        && ( !('pot' in data) || data.pot is number )
+        && ( !('currentBet' in data) || data.currentBet is number )
+        && ( !('turnIndex' in data) || data.turnIndex is number )
+        && ( !('turnOrder' in data) || (data.turnOrder is list && data.turnOrder.size() <= 10) )
+        && ( !('communityCards' in data) || (data.communityCards is list && data.communityCards.size() <= 5) )
+        && ( !('deck' in data) || (data.deck is list && data.deck.size() <= 52) )
+        && ( !('lastAction' in data) || (data.lastAction is string && data.lastAction.size() <= 200) );
+    }
+
+    function isValidPlayer(data, playerId) {
+      return data.keys().hasAll(['name', 'chips', 'status', 'updatedAt'])
+        && playerId == request.auth.uid
+        && data.name is string && data.name.size() <= 50
+        && data.chips is number
+        && data.status in ['waiting', 'active', 'folded', 'all_in', 'broke']
+        && ( !('currentBet' in data) || data.currentBet is number )
+        && ( !('cards' in data) || (data.cards is list && data.cards.size() <= 3) )
+        && ( !('isBlind' in data) || data.isBlind is bool );
+    }
+
+    function isValidPlayerUpdate(data, playerId) {
+       return playerId == request.auth.uid
+        && ( !('name' in data) || (data.name is string && data.name.size() <= 50) )
+        && ( !('chips' in data) || data.chips is number )
+        && ( !('status' in data) || data.status in ['waiting', 'active', 'folded', 'all_in', 'broke'] )
+        && ( !('currentBet' in data) || data.currentBet is number )
+        && ( !('cards' in data) || (data.cards is list && data.cards.size() <= 3) )
+        && ( !('isBlind' in data) || data.isBlind is bool );
+    }
+
+    match /rooms/{roomId} {
+      allow read: if isSignedIn() && isValidId(roomId);
+      allow create: if isSignedIn() && isValidId(roomId) && isValidRoom(incoming());
+      allow update: if isSignedIn() && isValidId(roomId) 
+        && ( existing().hostId == request.auth.uid || exists(/databases/$(database)/documents/rooms/$(roomId)/players/$(request.auth.uid)) )
+        && isValidRoomUpdate(incoming());
+      
+      match /players/{playerId} {
+        allow read: if isSignedIn() && isValidId(roomId) && isValidId(playerId);
+        allow create: if isSignedIn() && isValidId(roomId) && isValidId(playerId) 
+          && exists(/databases/$(database)/documents/rooms/$(roomId))
+          && isValidPlayer(incoming(), playerId);
+        allow update: if isSignedIn() && isValidId(roomId) && isValidId(playerId) 
+          && isValidPlayerUpdate(incoming(), playerId);
+      }
+    }
+  }
+}
