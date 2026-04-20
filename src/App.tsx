@@ -15,7 +15,8 @@ export default function App() {
     const [loadingAuth, setLoadingAuth] = useState(true);
     const [room, setRoom] = useState<Room | null>(null);
     const [players, setPlayers] = useState<Player[]>([]);
-    const [roomId, setRoomId] = useState('');
+    const [joinCode, setJoinCode] = useState(''); // Text input for joining
+    const [activeRoomId, setActiveRoomId] = useState(''); // The room we actually committed to
     const [playerName, setPlayerName] = useState('');
     const [gameMode, setGameMode] = useState<'teen_patti' | 'poker'>('teen_patti');
     const [error, setError] = useState('');
@@ -29,12 +30,12 @@ export default function App() {
         return () => unsubscribe();
     }, []);
 
-    // Listen to room and players
+    // Listen to room and players ONLY when we have successfully joined
     useEffect(() => {
-        if (!roomId || !user) return;
+        if (!activeRoomId || !user) return;
         setSyncError('');
 
-        const unsubscribeRoom = onSnapshot(doc(db, 'rooms', roomId), (snapshot) => {
+        const unsubscribeRoom = onSnapshot(doc(db, 'rooms', activeRoomId), (snapshot) => {
             if (snapshot.exists()) {
                 setRoom({ id: snapshot.id, ...snapshot.data() } as Room);
             } else {
@@ -45,7 +46,7 @@ export default function App() {
             setSyncError("Room sync failed: " + err.message);
         });
 
-        const unsubscribePlayers = onSnapshot(collection(db, 'rooms', roomId, 'players'), (snapshot) => {
+        const unsubscribePlayers = onSnapshot(collection(db, 'rooms', activeRoomId, 'players'), (snapshot) => {
             const p: Player[] = [];
             snapshot.forEach(d => p.push({ id: d.id, ...d.data() } as Player));
             setPlayers(p.sort((a,b) => a.seatIndex - b.seatIndex));
@@ -58,13 +59,13 @@ export default function App() {
             unsubscribeRoom();
             unsubscribePlayers();
         };
-    }, [roomId, user]);
+    }, [activeRoomId, user]);
 
     const joinRoom = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
-        if (!user || !playerName || !roomId) return;
-        const formattedRoomId = roomId.toUpperCase().trim();
+        if (!user || !playerName || !joinCode) return;
+        const formattedRoomId = joinCode.toUpperCase().trim();
         const roomRef = doc(db, 'rooms', formattedRoomId);
         
         try {
@@ -122,7 +123,7 @@ export default function App() {
                 updatedAt: Date.now()
             } as Player);
 
-            setRoomId(formattedRoomId);
+            setActiveRoomId(formattedRoomId); // Finally set the active room
         } catch (err: any) {
             console.error(err);
             setError('Failed to join room: ' + err.message);
@@ -183,8 +184,8 @@ export default function App() {
                                 type="text"
                                 className="w-full bg-black/60 border border-[#333] rounded-lg px-4 py-3 outline-none focus:border-[#15803d] focus:ring-1 focus:ring-[#15803d] transition-all uppercase font-mono tracking-widest text-[#eab308]"
                                 placeholder="e.g. ABCD"
-                                value={roomId}
-                                onChange={(e) => setRoomId(e.target.value.toUpperCase())}
+                                value={joinCode}
+                                onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
                             />
                         </div>
                         <div>
@@ -208,8 +209,9 @@ export default function App() {
     }
 
     const leaveRoom = () => {
-        setRoomId('');
+        setActiveRoomId('');
         setRoom(null);
+        setJoinCode('');
     };
 
     if (room.status === 'waiting') {
