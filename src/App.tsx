@@ -199,20 +199,32 @@ export default function App() {
         );
     }
 
+    const leaveRoom = () => {
+        setRoomId('');
+        setRoom(null);
+    };
+
     if (room.status === 'waiting') {
-        return <WaitingRoom room={room} players={players} user={user!} />;
+        return <WaitingRoom room={room} players={players} user={user!} onLeave={leaveRoom} />;
     }
 
-    return <GameTable room={room} players={players} user={user!} />;
+    return <GameTable room={room} players={players} user={user!} onLeave={leaveRoom} />;
 }
 
-function WaitingRoom({ room, players, user }: { room: Room, players: Player[], user: User }) {
+function WaitingRoom({ room, players, user, onLeave }: { room: Room, players: Player[], user: User, onLeave: () => void }) {
     const isHost = room.hostId === user.uid;
+    const [startError, setStartError] = useState('');
 
     const startGame = async () => {
-        if (!isHost || players.length < 2) return;
+        setStartError('');
+        if (!isHost) return;
+        if (players.length < 2) {
+            setStartError('Need at least 2 unique players to start. Make sure players use different Google Accounts!');
+            return;
+        }
         
-        let deck = shuffle(createDeck());
+        try {
+            let deck = shuffle(createDeck());
         const turnOrder = shuffle([...players].map(p => p.id!));
         
         // Deal cards and deduct boot amounts
@@ -277,10 +289,20 @@ function WaitingRoom({ room, players, user }: { room: Room, players: Player[], u
             winnerInfo: '',
             updatedAt: Date.now()
         });
+        } catch (e: any) {
+            console.error(e);
+            setStartError("Failed to start game: " + e.message);
+        }
     };
 
     return (
         <div className="h-screen w-full flex flex-col items-center justify-center bg-[#050505] bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-[#1a2a1f] to-[#050505] text-[#f0f0f0] p-4 font-sans">
+            <div className="absolute top-4 right-4 z-50">
+                <button onClick={onLeave} className="flex items-center gap-2 px-4 py-2 bg-red-900/40 hover:bg-red-800 text-red-200 rounded-lg text-sm font-bold border border-red-900/50 transition-colors">
+                    <LogOut className="w-4 h-4" /> Leave Room
+                </button>
+            </div>
+            
             <div className="bg-black/60 p-8 rounded-3xl shadow-[0_0_50px_rgba(0,0,0,0.5)] max-w-md w-full backdrop-blur-md border border-[#333]">
                 <div className="flex items-center justify-between mb-8 pb-6 border-b border-[#333]">
                     <div>
@@ -312,6 +334,8 @@ function WaitingRoom({ room, players, user }: { room: Room, players: Player[], u
                     </div>
                 </div>
 
+                {startError && <div className="p-3 bg-red-900/50 text-red-200 text-sm rounded-lg mb-4 flex items-center justify-center gap-2"><AlertCircle className="w-4 h-4"/>{startError}</div>}
+
                 {isHost ? (
                     <button 
                         onClick={startGame}
@@ -330,7 +354,7 @@ function WaitingRoom({ room, players, user }: { room: Room, players: Player[], u
     );
 }
 
-function GameTable({ room, players, user }: { room: Room, players: Player[], user: User }) {
+function GameTable({ room, players, user, onLeave }: { room: Room, players: Player[], user: User, onLeave: () => void }) {
     const me = players.find(p => p.id === user.uid);
     const isMyTurn = room.status === 'playing' && room.turnOrder[room.turnIndex] === user.uid && me?.status === 'active';
     const isHost = room.hostId === user.uid;
@@ -587,9 +611,14 @@ function GameTable({ room, players, user }: { room: Room, players: Player[], use
                          <div className="text-[10px] opacity-60 uppercase">Current Game</div>
                          <div className="text-[14px] sm:text-[18px] font-extrabold text-[#eab308]">{room.gameMode === 'teen_patti' ? 'Teen Patti' : "Texas Hold'em"}</div>
                      </div>
-                     <div className="bg-white/5 py-2.5 px-3 sm:px-5 rounded-xl border border-white/10 text-right">
-                         <div className="text-[10px] opacity-60 uppercase">Room Code</div>
-                         <div className="text-[14px] sm:text-[18px] font-extrabold">{room.id}</div>
+                     <div className="flex items-center gap-4">
+                         <button onClick={onLeave} className="bg-red-900/40 hover:bg-red-800 text-red-200 py-2.5 px-4 rounded-xl border border-red-900/50 flex items-center gap-2 text-sm font-bold transition-colors">
+                             <LogOut className="w-4 h-4" /> <span className="hidden sm:inline">Leave</span>
+                         </button>
+                         <div className="bg-white/5 py-2.5 px-3 sm:px-5 rounded-xl border border-white/10 text-right">
+                             <div className="text-[10px] opacity-60 uppercase">Room Code</div>
+                             <div className="text-[14px] sm:text-[18px] font-extrabold">{room.id}</div>
+                         </div>
                      </div>
                 </div>
 
