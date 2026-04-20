@@ -19,6 +19,7 @@ export default function App() {
     const [playerName, setPlayerName] = useState('');
     const [gameMode, setGameMode] = useState<'teen_patti' | 'poker'>('teen_patti');
     const [error, setError] = useState('');
+    const [syncError, setSyncError] = useState('');
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (u) => {
@@ -31,6 +32,7 @@ export default function App() {
     // Listen to room and players
     useEffect(() => {
         if (!roomId || !user) return;
+        setSyncError('');
 
         const unsubscribeRoom = onSnapshot(doc(db, 'rooms', roomId), (snapshot) => {
             if (snapshot.exists()) {
@@ -38,12 +40,18 @@ export default function App() {
             } else {
                 setRoom(null);
             }
+        }, (err) => {
+            console.error("Room Sync Error:", err);
+            setSyncError("Room sync failed: " + err.message);
         });
 
         const unsubscribePlayers = onSnapshot(collection(db, 'rooms', roomId, 'players'), (snapshot) => {
             const p: Player[] = [];
             snapshot.forEach(d => p.push({ id: d.id, ...d.data() } as Player));
             setPlayers(p.sort((a,b) => a.seatIndex - b.seatIndex));
+        }, (err) => {
+            console.error("Players Sync Error:", err);
+            setSyncError("Players sync failed: " + err.message);
         });
 
         return () => {
@@ -205,13 +213,13 @@ export default function App() {
     };
 
     if (room.status === 'waiting') {
-        return <WaitingRoom room={room} players={players} user={user!} onLeave={leaveRoom} />;
+        return <WaitingRoom room={room} players={players} user={user!} onLeave={leaveRoom} syncError={syncError} />;
     }
 
-    return <GameTable room={room} players={players} user={user!} onLeave={leaveRoom} />;
+    return <GameTable room={room} players={players} user={user!} onLeave={leaveRoom} syncError={syncError} />;
 }
 
-function WaitingRoom({ room, players, user, onLeave }: { room: Room, players: Player[], user: User, onLeave: () => void }) {
+function WaitingRoom({ room, players, user, onLeave, syncError }: { room: Room, players: Player[], user: User, onLeave: () => void, syncError?: string }) {
     const isHost = room.hostId === user.uid;
     const [startError, setStartError] = useState('');
 
@@ -335,6 +343,7 @@ function WaitingRoom({ room, players, user, onLeave }: { room: Room, players: Pl
                 </div>
 
                 {startError && <div className="p-3 bg-red-900/50 text-red-200 text-sm rounded-lg mb-4 flex items-center justify-center gap-2"><AlertCircle className="w-4 h-4"/>{startError}</div>}
+                {syncError && <div className="p-3 bg-orange-900/50 text-orange-200 text-sm rounded-lg mb-4 flex items-center justify-center gap-2"><RefreshCw className="w-4 h-4"/>{syncError}</div>}
 
                 {isHost ? (
                     <button 
@@ -354,7 +363,7 @@ function WaitingRoom({ room, players, user, onLeave }: { room: Room, players: Pl
     );
 }
 
-function GameTable({ room, players, user, onLeave }: { room: Room, players: Player[], user: User, onLeave: () => void }) {
+function GameTable({ room, players, user, onLeave, syncError }: { room: Room, players: Player[], user: User, onLeave: () => void, syncError?: string }) {
     const me = players.find(p => p.id === user.uid);
     const isMyTurn = room.status === 'playing' && room.turnOrder[room.turnIndex] === user.uid && me?.status === 'active';
     const isHost = room.hostId === user.uid;
@@ -621,6 +630,8 @@ function GameTable({ room, players, user, onLeave }: { room: Room, players: Play
                          </div>
                      </div>
                 </div>
+
+                {syncError && <div className="absolute top-20 left-1/2 -translate-x-1/2 bg-orange-900/80 text-orange-200 px-4 py-2 rounded-lg font-bold border border-orange-500 z-50 shadow-xl flex items-center gap-2"><RefreshCw className="w-4 h-4" />{syncError}</div>}
 
                 <div className="relative w-full max-w-[800px] h-[300px] sm:h-[400px] bg-[radial-gradient(ellipse_at_center,#1b4d32_0%,#0d2b1a_100%)] border-[8px] sm:border-[12px] border-[#3d2b1f] rounded-[150px] sm:rounded-[200px] shadow-[inset_0_0_50px_rgba(0,0,0,0.8),0_20px_40px_rgba(0,0,0,0.5)] flex items-center justify-center">
                     <div className="absolute inset-2 sm:inset-5 border border-white/5 rounded-[140px] sm:rounded-[180px] pointer-events-none z-0"></div>
